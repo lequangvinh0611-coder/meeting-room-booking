@@ -14,12 +14,14 @@ import {
   isOverlapping,
   isSameDay,
   startOfDay,
+  createAuditEntry,
   type Booking,
   type Room,
 } from "@/lib/booking-data"
 import { RoomLabel } from "@/components/room-label"
 import { EmptyCell, BookedBlock } from "@/components/booking-cell"
 import { BookingModal, type BookingSelection } from "@/components/booking-modal"
+import { EditBookingModal } from "@/components/edit-booking-modal"
 import { RoomLocationModal } from "@/components/room-location-modal"
 import { DateNavigator } from "@/components/date-navigator"
 
@@ -29,13 +31,17 @@ export function BookingGrid() {
     startOfDay(new Date()),
   )
 
+  // State cho Modal Đặt Mới
   const [selection, setSelection] = useState<BookingSelection | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+
+  // State cho Modal Sửa/Xóa
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
 
   const [locationRoom, setLocationRoom] = useState<Room | null>(null)
   const [locationOpen, setLocationOpen] = useState(false)
 
-  // Only bookings on the selected day are relevant to the current grid.
   const dayBookings = useMemo(
     () => bookings.filter((b) => isSameDay(b.start_time, selectedDate)),
     [bookings, selectedDate],
@@ -49,9 +55,8 @@ export function BookingGrid() {
   }
 
   function handleBookedClick(booking: Booking) {
-    window.alert(
-      `Phòng đã bị trùng lịch!\n\nCuộc họp: ${booking.title}\nNgười đặt: ${booking.bookerName} (${booking.email})\nPhòng ban: ${booking.department}\nKhung giờ: ${formatRange(booking.start_time, booking.end_time)}`,
-    )
+    setEditingBooking(booking)
+    setEditModalOpen(true)
   }
 
   function handleViewLocation(room: Room) {
@@ -59,6 +64,7 @@ export function BookingGrid() {
     setLocationOpen(true)
   }
 
+  // LOGIC ĐẶT PHÒNG MỚI
   function handleConfirm(data: {
     title: string
     email: string
@@ -75,7 +81,6 @@ export function BookingGrid() {
       selection.date,
     )
 
-    // Reject bookings that would extend past the end of the grid (18:00).
     if (getSlotIndexFromISO(start_time) + data.durationMinutes / 30 > TOTAL_SLOTS) {
       return {
         ok: false,
@@ -83,7 +88,6 @@ export function BookingGrid() {
       }
     }
 
-    // Conflict validation against existing bookings for the same room.
     const conflict = bookings.some(
       (b) =>
         b.roomId === selection.room.id &&
@@ -106,6 +110,7 @@ export function BookingGrid() {
       bookerName: data.bookerName,
       department: data.department,
       syncGaroon: data.syncGaroon,
+      auditLog: [createAuditEntry(data.bookerName, "Tạo cuộc họp mới")],
     }
     setBookings((prev) => [...prev, newBooking])
     setModalOpen(false)
@@ -113,10 +118,92 @@ export function BookingGrid() {
     return { ok: true }
   }
 
-  /**
-   * Build the ordered list of cells for a room row. Booked blocks span
-   * multiple columns; occupied slots are skipped so the grid stays aligned.
-   */
+  // LOGIC SỬA PHÒNG ĐÃ ĐẶT
+  function handleUpdateBooking(
+    id: string,
+    data: {
+      title: string
+      email: string
+      bookerName: string
+      department: string
+      durationMinutes: number
+      syncGaroon: boolean
+    }
+  ): { ok: boolean; error?: string } {
+    const existing = bookings.find((b) => b.id === id)
+    if (!existing) return { ok: false, error: "Không tìm thấy cuộc họp." }
+
+    const startSlot = getSlotIndexFromISO(existing.start_time)
+    const { start_time, end_time } = getRangeFromSlot(
+      startSlot,
+      data.durationMinutes,
+      new Date(existing.start_time),
+    )
+
+    if (getSlotIndexFromISO(start_time) + data.durationMinutes / 30 > TOTAL_SLOTS) {
+      return { ok: false, error: "Thời lượng vượt quá khung giờ làm việc." }
+    }
+
+    // Check conflict (bỏ qua bản thân nó)
+    const conflict = bookings.some(
+      (b) =>
+        b.id !== id &&
+        b.roomId === existing.roomId &&
+        isOverlapping(start_time, end_time, b.start_time, b.end_time),
+    )
+    if (conflict) {
+      return { ok: false, error: "Khung giờ cập nhật bị trùng với người khác!" }
+    }
+
+    // Đánh giá các thay đổi để ghi Audit Log
+    const changes: string[] = []
+    if (existing.title !== data.title) changes.push("Tên")
+    if (existing.bookerName !== data.bookerName) changes.push("Người đặt")
+    if (existing.syncGaroon !== data.syncGaroon) changes.push("Đồng bộ")
+    
+    const oldDuration = getDurationSlots(existing.start_time, existing.end_time) * 30
+    if (oldDuration !== data.durationMinutes) changes.push("Thời lượng")
+
+    // Nếu không có thay đổi gì thì đóng luôn modal
+    if (changes.length === 0) {
+      setEditModalOpen(false)
+      setEditingBooking(null)
+      return { ok: true }
+    }
+
+    const actionText = `Sửa: ${changes.join(", ")}`
+    const newAudit = createAuditEntry(data.bookerName, actionText)
+
+    setBookings((prev) =>
+      prev.map((b) =>
+        b.id === id
+          ? {
+              ...b,
+              title: data.title,
+              email: data.email,
+              bookerName: data.bookerName,
+              department: data.department,
+              end_time,
+              syncGaroon: data.syncGaroon,
+              auditLog: [...b.auditLog, newAudit], // Append log mới
+            }
+          : b
+      )
+    )
+    setEditModalOpen(false)
+    setEditingBooking(null)
+    return { ok: true }
+  }
+
+  // LOGIC HỦY/XÓA ĐẶT PHÒNG
+  function handleDeleteBooking(id: string) {
+    if (window.confirm("Bạn có chắc chắn muốn hủy đặt phòng này?")) {
+      setBookings((prev) => prev.filter((b) => b.id !== id))
+      setEditModalOpen(false)
+      setEditingBooking(null)
+    }
+  }
+
   function buildRowCells(room: Room) {
     const roomBookings = dayBookings.filter((b) => b.roomId === room.id)
     const cells: React.ReactNode[] = []
@@ -159,8 +246,7 @@ export function BookingGrid() {
     return cells
   }
 
-  // Fixed room-label column + one column per 30-minute slot.
-  const gridTemplateColumns = `220px repeat(${TOTAL_SLOTS}, minmax(96px, 1fr))`
+  const gridTemplateColumns = `220px repeat(${TOTAL_SLOTS}, 110px)`
 
   return (
     <div className="flex flex-col gap-4">
@@ -168,7 +254,6 @@ export function BookingGrid() {
 
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
         <div className="min-w-max">
-          {/* Header row: 30-minute time slots */}
           <div className="grid" style={{ gridTemplateColumns }}>
             <div className="sticky left-0 z-10 flex items-center border-r border-b border-border bg-muted/60 px-4 py-3 text-sm font-semibold text-foreground">
               Phòng họp
@@ -183,10 +268,9 @@ export function BookingGrid() {
             ))}
           </div>
 
-          {/* Room rows */}
           {ROOMS.map((room) => (
             <div key={room.id} className="grid" style={{ gridTemplateColumns }}>
-              <div className="sticky left-0 z-10">
+              <div className="sticky left-0 z-10 bg-background">
                 <RoomLabel
                   room={room}
                   onViewLocation={() => handleViewLocation(room)}
@@ -203,6 +287,15 @@ export function BookingGrid() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onConfirm={handleConfirm}
+      />
+
+      {/* Tích hợp Modal Sửa/Xóa vừa tạo */}
+      <EditBookingModal
+        booking={editingBooking}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onUpdate={handleUpdateBooking}
+        onDelete={handleDeleteBooking}
       />
 
       <RoomLocationModal
