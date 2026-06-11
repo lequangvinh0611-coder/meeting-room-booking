@@ -8,15 +8,14 @@ type BookingCellProps = {
   onClick: () => void
 }
 
-/** Empty 30-minute slot. */
 export function EmptyCell({ onClick }: BookingCellProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex h-full min-h-[76px] w-full items-center justify-center border-r border-b border-border",
-        "bg-emerald-50/60 hover:bg-emerald-100 transition-colors cursor-pointer",
+        "group flex h-full min-h-[60px] w-full items-center justify-center border-r border-b border-slate-200",
+        "bg-emerald-50/40 hover:bg-emerald-100 transition-colors cursor-pointer",
       )}
       aria-label="Khung giờ trống, nhấn để đặt"
     >
@@ -30,12 +29,10 @@ export function EmptyCell({ onClick }: BookingCellProps) {
 
 type BookedBlockProps = {
   booking: Booking
-  /** Number of 30-minute columns this booking spans. */
   span: number
   onClick: () => void
 }
 
-/** A booked block that spans `span` columns across the time grid. */
 export function BookedBlock({ booking, span, onClick }: BookedBlockProps) {
   return (
     <button
@@ -43,24 +40,26 @@ export function BookedBlock({ booking, span, onClick }: BookedBlockProps) {
       onClick={onClick}
       style={{ gridColumn: `span ${span}` }}
       className={cn(
-        "group flex h-full min-h-[76px] w-full flex-col justify-center gap-1 overflow-hidden border-r border-b border-border px-2.5 py-1.5 text-left",
-        "bg-amber-100 hover:bg-amber-200 transition-colors cursor-pointer",
+        "group flex h-full min-h-[60px] w-full flex-col items-start justify-center gap-0.5 overflow-hidden border-r border-b border-slate-200 px-2 py-1 text-left",
+        "bg-amber-100/80 hover:bg-amber-200 transition-colors cursor-pointer min-w-0 relative",
       )}
       aria-label={`Đã đặt: ${booking.title}`}
     >
-      {/* Meeting title — bold, top line */}
-      <span className="truncate text-[13px] font-semibold leading-tight text-amber-950">
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400 rounded-r-sm" />
+      
+      <div className="w-full truncate text-[11px] font-bold text-amber-950 leading-tight">
         {booking.title}
-      </span>
-      {/* Booker — smaller, muted, second line */}
+      </div>
+      
       {booking.bookerName && (
-        <span className="truncate text-[11px] leading-tight text-amber-800/70">
-          {booking.bookerName} ({booking.department})
-        </span>
+        <div className="w-full truncate text-[10px] text-amber-800/80 font-medium leading-tight mt-0.5">
+          {booking.bookerName} <span className="opacity-70 font-normal">({booking.department})</span>
+        </div>
       )}
-      <span className="truncate text-[11px] font-medium text-amber-700/90">
+      
+      <div className="w-full truncate text-[9px] font-semibold text-amber-700/90 leading-tight">
         {formatRange(booking.start_time, booking.end_time)}
-      </span>
+      </div>
     </button>
   )
 }
