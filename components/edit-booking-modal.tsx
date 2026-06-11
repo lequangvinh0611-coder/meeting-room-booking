@@ -133,8 +133,8 @@ export function EditBookingModal({
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB: CHỈNH SỬA THÔNG TIN */}
-          <TabsContent value="info" className="space-y-4 pt-4">
+          {/* TAB: CHỈNH SỬA THÔNG TIN - Đã fix cứng chiều cao 380px và cho phép cuộn dọc */}
+          <TabsContent value="info" className="h-[380px] overflow-y-auto space-y-4 pt-4 pr-2 pb-2">
             <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
               <p className="capitalize text-muted-foreground">{bookingDate}</p>
               <p className="mt-0.5 text-foreground font-medium">
@@ -209,9 +209,9 @@ export function EditBookingModal({
             </form>
           </TabsContent>
 
-          {/* TAB: LỊCH SỬ CHỈNH SỬA */}
-          <TabsContent value="audit" className="pt-4">
-            <div className="max-h-[300px] overflow-y-auto pr-2 space-y-4">
+          {/* TAB: LỊCH SỬ CHỈNH SỬA - Đã fix cứng chiều cao 380px đồng nhất với Tab Thông tin */}
+          <TabsContent value="audit" className="h-[380px] overflow-y-auto pt-4 pr-2 pb-2">
+            <div className="space-y-4">
               {[...booking.auditLog].reverse().map((log) => (
                 <div key={log.id} className="relative pl-5 border-l-2 border-muted-foreground/20 pb-1">
                   <div className="absolute -left-[5px] top-1.5 size-2 rounded-full bg-muted-foreground/40" />
