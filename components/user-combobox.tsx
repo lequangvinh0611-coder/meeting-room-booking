@@ -29,32 +29,34 @@ export function UserCombobox({ value, onSelect }: UserComboboxProps) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            aria-expanded={open}
-            className="w-full justify-between font-normal"
-          >
-            {value ? (
-              <span className="flex min-w-0 items-center gap-2">
-                <User2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="truncate">
-                  {value.fullName}
-                  <span className="text-muted-foreground"> · {value.email}</span>
-                </span>
+      {/* FIX: Sử dụng asChild thay cho thuộc tính render */}
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          {value ? (
+            <span className="flex min-w-0 items-center gap-2">
+              <User2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="truncate">
+                {value.fullName}
+                <span className="text-muted-foreground"> · {value.email}</span>
               </span>
-            ) : (
-              <span className="text-muted-foreground">
-                Tìm theo tên hoặc email...
-              </span>
-            )}
-            <ChevronsUpDown className="size-4 shrink-0 opacity-50" aria-hidden="true" />
-          </Button>
-        }
-      />
-      <PopoverContent className="w-(--anchor-width) p-0" align="start">
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              Tìm theo tên hoặc email...
+            </span>
+          )}
+          <ChevronsUpDown className="size-4 shrink-0 opacity-50" aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      
+      {/* FIX: Sử dụng biến CSS chuẩn của Radix UI để menu rộng bằng nút bấm */}
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command
           filter={(itemValue, search) =>
             itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
