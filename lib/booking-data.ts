@@ -9,10 +9,25 @@ export type Room = {
 
 export type User = {
   id: string
+  /** Employee code, e.g. "NV001". */
+  employeeCode: string
   fullName: string
   email: string
   position: string
   department: string
+  /** Cybozu Garoon account login. */
+  cybozuAccount: string
+}
+
+/** A single entry in a booking's edit history (audit log). */
+export type AuditEntry = {
+  id: string
+  /** ISO timestamp of when the change happened. */
+  timestamp: string
+  /** Who performed the action. */
+  actor: string
+  /** Human-readable description of what changed. */
+  action: string
 }
 
 export type Booking = {
@@ -29,6 +44,25 @@ export type Booking = {
   /** Department of the booker, shown on the grid block. */
   department: string
   syncGaroon: boolean
+  /** Ordered edit history, newest entries appended last. */
+  auditLog: AuditEntry[]
+}
+
+/** Create a new audit log entry with a generated id and current timestamp. */
+export function createAuditEntry(actor: string, action: string): AuditEntry {
+  return {
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    actor,
+    action,
+  }
+}
+
+/** Format an ISO timestamp into a readable "HH:MM, DD/MM/YYYY" label. */
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => n.toString().padStart(2, "0")
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
 }
 
 /** Meeting rooms (Y axis) */
@@ -65,14 +99,14 @@ export const ROOMS: Room[] = [
 
 /** Mock employee directory used for the booker search/combobox. */
 export const USERS: User[] = [
-  { id: "u1", fullName: "Nguyễn Văn An", email: "an.nguyen@company.com", position: "Trưởng phòng", department: "Kỹ thuật" },
-  { id: "u2", fullName: "Trần Thị Bình", email: "binh.tran@company.com", position: "Chuyên viên", department: "Marketing" },
-  { id: "u3", fullName: "Lê Hoàng Cường", email: "cuong.le@company.com", position: "Giám đốc sản phẩm", department: "Sản phẩm" },
-  { id: "u4", fullName: "Phạm Thị Dung", email: "dung.pham@company.com", position: "Quản lý nhân sự", department: "Nhân sự" },
-  { id: "u5", fullName: "Vũ Minh Đức", email: "duc.vu@company.com", position: "Kỹ sư phần mềm", department: "Kỹ thuật" },
-  { id: "u6", fullName: "Hoàng Thị Em", email: "em.hoang@company.com", position: "Kế toán trưởng", department: "Tài chính" },
-  { id: "u7", fullName: "Đặng Văn Phúc", email: "phuc.dang@company.com", position: "Chuyên viên tuyển dụng", department: "Nhân sự" },
-  { id: "u8", fullName: "Bùi Thị Giang", email: "giang.bui@company.com", position: "Trưởng nhóm Design", department: "Sản phẩm" },
+  { id: "u1", employeeCode: "NV001", fullName: "Nguyễn Văn An", email: "an.nguyen@company.com", position: "Trưởng phòng", department: "Kỹ thuật", cybozuAccount: "an.nguyen" },
+  { id: "u2", employeeCode: "NV002", fullName: "Trần Thị Bình", email: "binh.tran@company.com", position: "Chuyên viên", department: "Marketing", cybozuAccount: "binh.tran" },
+  { id: "u3", employeeCode: "NV003", fullName: "Lê Hoàng Cường", email: "cuong.le@company.com", position: "Giám đốc sản phẩm", department: "Sản phẩm", cybozuAccount: "cuong.le" },
+  { id: "u4", employeeCode: "NV004", fullName: "Phạm Thị Dung", email: "dung.pham@company.com", position: "Quản lý nhân sự", department: "Nhân sự", cybozuAccount: "dung.pham" },
+  { id: "u5", employeeCode: "NV005", fullName: "Vũ Minh Đức", email: "duc.vu@company.com", position: "Kỹ sư phần mềm", department: "Kỹ thuật", cybozuAccount: "duc.vu" },
+  { id: "u6", employeeCode: "NV006", fullName: "Hoàng Thị Em", email: "em.hoang@company.com", position: "Kế toán trưởng", department: "Tài chính", cybozuAccount: "em.hoang" },
+  { id: "u7", employeeCode: "NV007", fullName: "Đặng Văn Phúc", email: "phuc.dang@company.com", position: "Chuyên viên tuyển dụng", department: "Nhân sự", cybozuAccount: "phuc.dang" },
+  { id: "u8", employeeCode: "NV008", fullName: "Bùi Thị Giang", email: "giang.bui@company.com", position: "Trưởng nhóm Design", department: "Sản phẩm", cybozuAccount: "giang.bui" },
 ]
 
 /* -------------------------------------------------------------------------- */
@@ -90,6 +124,15 @@ export const SLOTS: number[] = Array.from(
   { length: TOTAL_SLOTS },
   (_, i) => START_HOUR * 60 + i * SLOT_MINUTES,
 )
+
+/** Whole hours used for the grid header (08:00, 09:00, ... 17:00). */
+export const HOURS: number[] = Array.from(
+  { length: END_HOUR - START_HOUR },
+  (_, i) => START_HOUR + i,
+)
+
+/** Fixed pixel width of one 30-minute slot column (1 hour = 2 slots = 160px). */
+export const SLOT_WIDTH_PX = 80
 
 /** Duration options offered in the booking modal. */
 export const DURATION_OPTIONS = [
@@ -255,5 +298,13 @@ export const INITIAL_BOOKINGS: Booking[] = SEED.map((s) => {
     bookerName: user?.fullName ?? "",
     department: user?.department ?? "",
     syncGaroon: s.syncGaroon,
+    auditLog: [
+      {
+        id: `log-${s.id}`,
+        timestamp: start.toISOString(),
+        actor: user?.fullName ?? "Hệ thống",
+        action: "Tạo cuộc họp",
+      },
+    ],
   }
 })

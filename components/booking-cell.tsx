@@ -15,7 +15,7 @@ export function EmptyCell({ onClick }: BookingCellProps) {
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex h-full min-h-[72px] w-full items-center justify-center border-r border-b border-border",
+        "group flex h-full min-h-[76px] w-full items-center justify-center border-r border-b border-border",
         "bg-emerald-50/60 hover:bg-emerald-100 transition-colors cursor-pointer",
       )}
       aria-label="Khung giờ trống, nhấn để đặt"
@@ -43,20 +43,21 @@ export function BookedBlock({ booking, span, onClick }: BookedBlockProps) {
       onClick={onClick}
       style={{ gridColumn: `span ${span}` }}
       className={cn(
-        "group flex h-full min-h-[72px] w-full flex-col justify-center gap-0.5 border-r border-b border-border px-2.5 py-1.5 text-left",
+        "group flex h-full min-h-[76px] w-full flex-col justify-center gap-1 overflow-hidden border-r border-b border-border px-2.5 py-1.5 text-left",
         "bg-amber-100 hover:bg-amber-200 transition-colors cursor-pointer",
       )}
       aria-label={`Đã đặt: ${booking.title}`}
     >
-      <span className="truncate text-xs font-semibold leading-tight text-amber-950">
+      {/* Meeting title — bold, top line */}
+      <span className="truncate text-[13px] font-semibold leading-tight text-amber-950">
         {booking.title}
-        {booking.bookerName
-          ? ` - ${booking.bookerName} (${booking.department})`
-          : ""}
       </span>
-      <span className="truncate text-[11px] text-amber-800/80">
-        {booking.email}
-      </span>
+      {/* Booker — smaller, muted, second line */}
+      {booking.bookerName && (
+        <span className="truncate text-[11px] leading-tight text-amber-800/70">
+          {booking.bookerName} ({booking.department})
+        </span>
+      )}
       <span className="truncate text-[11px] font-medium text-amber-700/90">
         {formatRange(booking.start_time, booking.end_time)}
       </span>
