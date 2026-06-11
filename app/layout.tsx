@@ -2,7 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
-import { SiteHeader } from '@/components/site-header' // <-- IMPORT MENU VÀO ĐÂY
+import { Navigation } from '@/components/navigation'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({
@@ -13,24 +13,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Hệ thống Đặt phòng họp',
   description: 'Quản lý lịch đặt phòng họp Cybozu',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
 }
 
 export default function RootLayout({
@@ -40,15 +22,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={`${geistSans.variable} ${geistMono.variable}`}>
-      {/* Sửa lại class của body để có hình nền xám nhạt và bọc bố cục */}
-      <body className="font-sans antialiased min-h-screen bg-muted/20 flex flex-col">
+      {/* Flex ngang, khóa cuộn tổng thể (h-screen overflow-hidden), dùng màu xám cực nhạt để làm nổi bật content */}
+      <body className="font-sans antialiased flex h-screen overflow-hidden bg-slate-50 text-slate-900">
         
-        {/* ĐẶT THANH MENU Ở ĐÂY ĐỂ NÓ HIỆN Ở MỌI TRANG */}
-        <SiteHeader /> 
+        {/* Component này sẽ tự động biến đổi tùy theo PC hay Mobile */}
+        <Navigation /> 
         
-        {/* PHẦN NỘI DUNG CÁC TRANG SẼ HIỂN THỊ BÊN TRONG THẺ MAIN NÀY */}
-        <main className="flex-1 container mx-auto px-4 py-6">
-          {children}
+        {/* Khu vực nội dung được cuộn độc lập. 
+            pb-24: Tạo khoảng trống dưới cùng trên Mobile để không bị Bottom Nav che mất nội dung
+            md:pb-0: Bỏ khoảng trống này đi khi lên màn hình Desktop */}
+        <main className="flex-1 h-full overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
+          <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
+            {children}
+          </div>
         </main>
 
         {process.env.NODE_ENV === 'production' && <Analytics />}
