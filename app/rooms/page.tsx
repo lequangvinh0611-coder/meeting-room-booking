@@ -4,11 +4,16 @@ import { useState } from "react"
 import { ROOMS, type Room } from "@/lib/booking-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Edit2, Trash2, Users, MapPin, Layers } from "lucide-react"
+import { Plus, Search, Edit2, Trash2, Users, MapPin, Layers, Map } from "lucide-react"
+import { RoomLocationModal } from "@/components/room-location-modal"
 
 export default function RoomsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [rooms, setRooms] = useState<Room[]>(ROOMS)
+
+  // State quản lý Modal Bản đồ
+  const [locationRoom, setLocationRoom] = useState<Room | null>(null)
+  const [locationOpen, setLocationOpen] = useState(false)
 
   const filteredRooms = rooms.filter((room) =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,7 +56,8 @@ export default function RoomsPage() {
                 <th className="px-4 py-3">Tên Phòng</th>
                 <th className="px-4 py-3">Tầng</th>
                 <th className="px-4 py-3">Sức chứa</th>
-                <th className="px-4 py-3 w-1/3">Mô tả vị trí</th>
+                <th className="px-4 py-3 w-[25%]">Mô tả vị trí</th>
+                <th className="px-4 py-3 text-center">Sơ đồ</th>
                 <th className="px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -67,6 +73,16 @@ export default function RoomsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-600 text-xs"><div className="flex items-start gap-1.5"><MapPin className="size-3.5 mt-0.5 shrink-0" />{room.location}</div></td>
+                    <td className="px-4 py-3 text-center">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs bg-white text-slate-700" 
+                        onClick={() => { setLocationRoom(room); setLocationOpen(true); }}
+                      >
+                        <Map className="size-3.5 mr-1.5 text-blue-600" /> Xem bản đồ
+                      </Button>
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50"><Edit2 className="size-4" /></Button>
@@ -76,7 +92,7 @@ export default function RoomsPage() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Không tìm thấy dữ liệu.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Không tìm thấy dữ liệu.</td></tr>
               )}
             </tbody>
           </table>
@@ -100,9 +116,19 @@ export default function RoomsPage() {
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600"><Trash2 className="size-4" /></Button>
                   </div>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs text-slate-600 flex gap-2">
-                   <MapPin className="size-3.5 shrink-0 mt-0.5 text-slate-400"/>
-                   <span>{room.location}</span>
+                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs text-slate-600 flex flex-col gap-2">
+                   <div className="flex gap-2">
+                     <MapPin className="size-3.5 shrink-0 mt-0.5 text-slate-400"/>
+                     <span>{room.location}</span>
+                   </div>
+                   <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full mt-1 bg-white text-slate-700"
+                      onClick={() => { setLocationRoom(room); setLocationOpen(true); }}
+                   >
+                     <Map className="size-3.5 mr-1.5 text-blue-600" /> Mở sơ đồ
+                   </Button>
                 </div>
               </div>
             ))
@@ -111,6 +137,13 @@ export default function RoomsPage() {
           )}
         </div>
       </div>
+
+      {/* Tích hợp Modal */}
+      <RoomLocationModal
+        room={locationRoom}
+        open={locationOpen}
+        onOpenChange={setLocationOpen}
+      />
     </div>
   )
 }
