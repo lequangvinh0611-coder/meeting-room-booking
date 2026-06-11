@@ -7,6 +7,9 @@ import {
   INITIAL_BOOKINGS,
   formatHour,
   formatSlot,
+  getHourFromISO,
+  getSlotRange,
+  isOverlapping,
   type Booking,
 } from "@/lib/booking-data"
 import { RoomLabel } from "@/components/room-label"
@@ -18,8 +21,14 @@ export function BookingGrid() {
   const [selection, setSelection] = useState<BookingSelection | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
+  /**
+   * Match a grid cell (room + hour today) against bookings by comparing
+   * the local hour parsed from each booking's ISO `start_time`.
+   */
   function findBooking(roomId: string, hour: number) {
-    return bookings.find((b) => b.roomId === roomId && b.hour === hour)
+    return bookings.find(
+      (b) => b.roomId === roomId && getHourFromISO(b.start_time) === hour,
+    )
   }
 
   function handleCellClick(roomId: string, hour: number) {
@@ -41,17 +50,36 @@ export function BookingGrid() {
     title: string
     email: string
     syncGaroon: boolean
-  }) {
-    if (!selection) return
+  }): { ok: boolean; error?: string } {
+    if (!selection) return { ok: false }
+
+    const { start_time, end_time } = getSlotRange(selection.hour)
+
+    // Conflict validation: reject if the chosen slot overlaps an existing
+    // booking for the same room.
+    const conflict = bookings.some(
+      (b) =>
+        b.roomId === selection.room.id &&
+        isOverlapping(start_time, end_time, b.start_time, b.end_time),
+    )
+    if (conflict) {
+      return {
+        ok: false,
+        error: "Khung giờ này vừa có người đặt, vui lòng chọn giờ khác!",
+      }
+    }
+
     const newBooking: Booking = {
       id: `b-${Date.now()}`,
       roomId: selection.room.id,
-      hour: selection.hour,
+      start_time,
+      end_time,
       ...data,
     }
     setBookings((prev) => [...prev, newBooking])
     setModalOpen(false)
     setSelection(null)
+    return { ok: true }
   }
 
   // Grid template: fixed room-label column + one column per hour

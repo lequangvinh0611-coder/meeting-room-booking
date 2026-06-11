@@ -8,8 +8,10 @@ export type Room = {
 export type Booking = {
   id: string
   roomId: string
-  /** Hour in 24h format, e.g. 9 means the 9:00 - 10:00 slot */
-  hour: number
+  /** ISO 8601 string (PostgreSQL timestamptz), e.g. "2026-06-11T08:00:00.000Z" */
+  start_time: string
+  /** ISO 8601 string (PostgreSQL timestamptz), e.g. "2026-06-11T09:00:00.000Z" */
+  end_time: string
   title: string
   email: string
   syncGaroon: boolean
@@ -40,8 +42,63 @@ export function formatSlot(hour: number): string {
   return `${formatHour(hour)} - ${formatHour(hour + 1)}`
 }
 
-/** Initial mock bookings so the grid is populated on first render */
-export const INITIAL_BOOKINGS: Booking[] = [
+/* -------------------------------------------------------------------------- */
+/* Time helpers: convert between grid hours and ISO strings                   */
+/* -------------------------------------------------------------------------- */
+
+/** The day the grid is currently rendering (today, at local midnight). */
+export function getGridDate(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/**
+ * Convert a grid hour (e.g. 8 -> 8:00 today) into an ISO string.
+ * Round-trips safely with `getHourFromISO` regardless of timezone.
+ */
+export function hourToISO(hour: number, base: Date = getGridDate()): string {
+  const d = new Date(base)
+  d.setHours(hour, 0, 0, 0)
+  return d.toISOString()
+}
+
+/** Build the { start_time, end_time } ISO range for a one-hour slot. */
+export function getSlotRange(
+  hour: number,
+  base: Date = getGridDate(),
+): { start_time: string; end_time: string } {
+  return {
+    start_time: hourToISO(hour, base),
+    end_time: hourToISO(hour + 1, base),
+  }
+}
+
+/** Read the local hour (0-23) represented by an ISO string. */
+export function getHourFromISO(iso: string): number {
+  return new Date(iso).getHours()
+}
+
+/** True when two [start, end) time ranges overlap. */
+export function isOverlapping(
+  aStart: string,
+  aEnd: string,
+  bStart: string,
+  bEnd: string,
+): boolean {
+  return (
+    new Date(aStart).getTime() < new Date(bEnd).getTime() &&
+    new Date(bStart).getTime() < new Date(aEnd).getTime()
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mock data (generated for today so the grid is populated on first render)   */
+/* -------------------------------------------------------------------------- */
+
+type SeedBooking = Omit<Booking, "start_time" | "end_time"> & { hour: number }
+
+const SEED: SeedBooking[] = [
   {
     id: "b1",
     roomId: "room-large",
@@ -91,3 +148,9 @@ export const INITIAL_BOOKINGS: Booking[] = [
     syncGaroon: true,
   },
 ]
+
+/** Initial mock bookings, stored as ISO strings just like PostgreSQL would. */
+export const INITIAL_BOOKINGS: Booking[] = SEED.map(({ hour, ...rest }) => ({
+  ...rest,
+  ...getSlotRange(hour),
+}))

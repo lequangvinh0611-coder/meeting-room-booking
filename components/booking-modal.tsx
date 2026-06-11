@@ -25,7 +25,11 @@ type BookingModalProps = {
   selection: BookingSelection | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (data: { title: string; email: string; syncGaroon: boolean }) => void
+  onConfirm: (data: {
+    title: string
+    email: string
+    syncGaroon: boolean
+  }) => { ok: boolean; error?: string }
 }
 
 export function BookingModal({
@@ -37,6 +41,7 @@ export function BookingModal({
   const [title, setTitle] = useState("")
   const [email, setEmail] = useState("")
   const [syncGaroon, setSyncGaroon] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Reset form whenever a new slot is opened
   useEffect(() => {
@@ -44,13 +49,22 @@ export function BookingModal({
       setTitle("")
       setEmail("")
       setSyncGaroon(false)
+      setError(null)
     }
   }, [open])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !email.trim()) return
-    onConfirm({ title: title.trim(), email: email.trim(), syncGaroon })
+    const result = onConfirm({
+      title: title.trim(),
+      email: email.trim(),
+      syncGaroon,
+    })
+    // Keep the modal open and surface the conflict message on failure.
+    if (!result.ok) {
+      setError(result.error ?? "Không thể đặt phòng, vui lòng thử lại.")
+    }
   }
 
   return (
@@ -88,7 +102,10 @@ export function BookingModal({
             <Input
               id="meeting-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value)
+                setError(null)
+              }}
               placeholder="VD: Họp kế hoạch tháng 6"
               autoFocus
               required
@@ -121,6 +138,15 @@ export function BookingModal({
               Đồng bộ tạo lịch lên Cybozu Garoon
             </span>
           </label>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive"
+            >
+              {error}
+            </p>
+          )}
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
