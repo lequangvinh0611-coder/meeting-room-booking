@@ -22,17 +22,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={`${geistSans.variable} ${geistMono.variable}`}>
-      {/* Flex ngang, khóa cuộn tổng thể (h-screen overflow-hidden), dùng màu xám cực nhạt để làm nổi bật content */}
       <body className="font-sans antialiased flex h-screen overflow-hidden bg-slate-50 text-slate-900">
         
-        {/* Component này sẽ tự động biến đổi tùy theo PC hay Mobile */}
         <Navigation /> 
         
-        {/* Khu vực nội dung được cuộn độc lập. 
-            pb-24: Tạo khoảng trống dưới cùng trên Mobile để không bị Bottom Nav che mất nội dung
-            md:pb-0: Bỏ khoảng trống này đi khi lên màn hình Desktop */}
-        <main className="flex-1 h-full overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
-          <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
+        {/* Đã thêm no-scrollbar, bỏ max-w-7xl và thay bằng w-full để tràn viền */}
+        <main className="flex-1 h-full overflow-y-auto no-scrollbar relative pb-24 md:pb-0 w-full">
+          <div className="w-full mx-auto p-4 md:p-6 lg:p-8">
             {children}
           </div>
         </main>
