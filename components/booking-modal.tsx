@@ -9,16 +9,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CalendarPlus } from "lucide-react"
-import { formatSlot, type Room } from "@/lib/booking-data"
+import { UserCombobox } from "@/components/user-combobox"
+import {
+  SLOTS,
+  DURATION_OPTIONS,
+  formatMinutes,
+  type Room,
+  type User,
+} from "@/lib/booking-data"
 
 export type BookingSelection = {
   room: Room
-  hour: number
+  /** Index of the 30-minute slot column the booking starts at. */
+  slotIndex: number
+  /** The calendar day the booking is being made for. */
+  date: Date
 }
 
 type BookingModalProps = {
@@ -28,6 +45,9 @@ type BookingModalProps = {
   onConfirm: (data: {
     title: string
     email: string
+    bookerName: string
+    department: string
+    durationMinutes: number
     syncGaroon: boolean
   }) => { ok: boolean; error?: string }
 }
@@ -39,7 +59,8 @@ export function BookingModal({
   onConfirm,
 }: BookingModalProps) {
   const [title, setTitle] = useState("")
-  const [email, setEmail] = useState("")
+  const [user, setUser] = useState<User | null>(null)
+  const [durationMinutes, setDurationMinutes] = useState(60)
   const [syncGaroon, setSyncGaroon] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,7 +68,8 @@ export function BookingModal({
   useEffect(() => {
     if (open) {
       setTitle("")
-      setEmail("")
+      setUser(null)
+      setDurationMinutes(60)
       setSyncGaroon(false)
       setError(null)
     }
@@ -55,10 +77,20 @@ export function BookingModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim() || !email.trim()) return
+    if (!title.trim()) {
+      setError("Vui lòng nhập tên cuộc họp.")
+      return
+    }
+    if (!user) {
+      setError("Vui lòng chọn người đặt phòng.")
+      return
+    }
     const result = onConfirm({
       title: title.trim(),
-      email: email.trim(),
+      email: user.email,
+      bookerName: user.fullName,
+      department: user.department,
+      durationMinutes,
       syncGaroon,
     })
     // Keep the modal open and surface the conflict message on failure.
@@ -66,6 +98,18 @@ export function BookingModal({
       setError(result.error ?? "Không thể đặt phòng, vui lòng thử lại.")
     }
   }
+
+  const startLabel =
+    selection != null ? formatMinutes(SLOTS[selection.slotIndex]) : ""
+  const dateLabel =
+    selection != null
+      ? selection.date.toLocaleDateString("vi-VN", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : ""
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -87,11 +131,10 @@ export function BookingModal({
                 {selection.room.floor} · {selection.room.capacity} người
               </span>
             </div>
-            <p className="mt-1 text-muted-foreground">
-              Khung giờ:{" "}
-              <span className="font-medium text-foreground">
-                {formatSlot(selection.hour)}
-              </span>
+            <p className="mt-1 text-muted-foreground capitalize">{dateLabel}</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Bắt đầu lúc:{" "}
+              <span className="font-medium text-foreground">{startLabel}</span>
             </p>
           </div>
         )}
@@ -113,15 +156,41 @@ export function BookingModal({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="booker-email">Email người đặt</Label>
-            <Input
-              id="booker-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ten@company.com"
-              required
+            <Label>Người đặt</Label>
+            <UserCombobox
+              value={user}
+              onSelect={(u) => {
+                setUser(u)
+                setError(null)
+              }}
             />
+            {user && (
+              <p className="text-xs text-muted-foreground">
+                {user.position} · {user.department}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="duration">Thời lượng</Label>
+            <Select
+              value={String(durationMinutes)}
+              onValueChange={(v) => {
+                setDurationMinutes(Number(v))
+                setError(null)
+              }}
+            >
+              <SelectTrigger id="duration" className="w-full">
+                <SelectValue placeholder="Chọn thời lượng" />
+              </SelectTrigger>
+              <SelectContent>
+                {DURATION_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <label

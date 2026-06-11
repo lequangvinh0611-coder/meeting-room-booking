@@ -2,13 +2,6 @@ import { CalendarDays } from "lucide-react"
 import { BookingGrid } from "@/components/booking-grid"
 
 export default function Page() {
-  const today = new Date().toLocaleDateString("vi-VN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 lg:px-8">
@@ -19,7 +12,9 @@ export default function Page() {
               Quản lý đặt phòng họp
             </h1>
           </div>
-          <p className="text-sm text-muted-foreground capitalize">{today}</p>
+          <p className="text-sm text-muted-foreground">
+            Chọn ngày và nhấn vào ô trống để đặt phòng nhanh.
+          </p>
         </header>
 
         {/* Legend */}

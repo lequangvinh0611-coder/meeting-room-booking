@@ -1,62 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   ROOMS,
-  HOURS,
+  SLOTS,
+  TOTAL_SLOTS,
   INITIAL_BOOKINGS,
-  formatHour,
-  formatSlot,
-  getHourFromISO,
-  getSlotRange,
+  formatMinutes,
+  formatRange,
+  getRangeFromSlot,
+  getSlotIndexFromISO,
+  getDurationSlots,
   isOverlapping,
+  isSameDay,
+  startOfDay,
   type Booking,
+  type Room,
 } from "@/lib/booking-data"
 import { RoomLabel } from "@/components/room-label"
-import { BookingCell } from "@/components/booking-cell"
+import { EmptyCell, BookedBlock } from "@/components/booking-cell"
 import { BookingModal, type BookingSelection } from "@/components/booking-modal"
+import { RoomLocationModal } from "@/components/room-location-modal"
+import { DateNavigator } from "@/components/date-navigator"
 
 export function BookingGrid() {
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS)
+  const [selectedDate, setSelectedDate] = useState<Date>(() =>
+    startOfDay(new Date()),
+  )
+
   const [selection, setSelection] = useState<BookingSelection | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
-  /**
-   * Match a grid cell (room + hour today) against bookings by comparing
-   * the local hour parsed from each booking's ISO `start_time`.
-   */
-  function findBooking(roomId: string, hour: number) {
-    return bookings.find(
-      (b) => b.roomId === roomId && getHourFromISO(b.start_time) === hour,
+  const [locationRoom, setLocationRoom] = useState<Room | null>(null)
+  const [locationOpen, setLocationOpen] = useState(false)
+
+  // Only bookings on the selected day are relevant to the current grid.
+  const dayBookings = useMemo(
+    () => bookings.filter((b) => isSameDay(b.start_time, selectedDate)),
+    [bookings, selectedDate],
+  )
+
+  function handleEmptyClick(roomId: string, slotIndex: number) {
+    const room = ROOMS.find((r) => r.id === roomId)
+    if (!room) return
+    setSelection({ room, slotIndex, date: selectedDate })
+    setModalOpen(true)
+  }
+
+  function handleBookedClick(booking: Booking) {
+    window.alert(
+      `Phòng đã bị trùng lịch!\n\nCuộc họp: ${booking.title}\nNgười đặt: ${booking.bookerName} (${booking.email})\nPhòng ban: ${booking.department}\nKhung giờ: ${formatRange(booking.start_time, booking.end_time)}`,
     )
   }
 
-  function handleCellClick(roomId: string, hour: number) {
-    const existing = findBooking(roomId, hour)
-    if (existing) {
-      // Already booked -> warn about conflict
-      window.alert(
-        `Phòng đã bị trùng lịch!\n\nCuộc họp: ${existing.title}\nNgười đặt: ${existing.email}\nKhung giờ: ${formatSlot(hour)}`,
-      )
-      return
-    }
-    const room = ROOMS.find((r) => r.id === roomId)
-    if (!room) return
-    setSelection({ room, hour })
-    setModalOpen(true)
+  function handleViewLocation(room: Room) {
+    setLocationRoom(room)
+    setLocationOpen(true)
   }
 
   function handleConfirm(data: {
     title: string
     email: string
+    bookerName: string
+    department: string
+    durationMinutes: number
     syncGaroon: boolean
   }): { ok: boolean; error?: string } {
     if (!selection) return { ok: false }
 
-    const { start_time, end_time } = getSlotRange(selection.hour)
+    const { start_time, end_time } = getRangeFromSlot(
+      selection.slotIndex,
+      data.durationMinutes,
+      selection.date,
+    )
 
-    // Conflict validation: reject if the chosen slot overlaps an existing
-    // booking for the same room.
+    // Reject bookings that would extend past the end of the grid (18:00).
+    if (getSlotIndexFromISO(start_time) + data.durationMinutes / 30 > TOTAL_SLOTS) {
+      return {
+        ok: false,
+        error: "Thời lượng vượt quá khung giờ làm việc (kết thúc 18:00).",
+      }
+    }
+
+    // Conflict validation against existing bookings for the same room.
     const conflict = bookings.some(
       (b) =>
         b.roomId === selection.room.id &&
@@ -74,7 +101,11 @@ export function BookingGrid() {
       roomId: selection.room.id,
       start_time,
       end_time,
-      ...data,
+      title: data.title,
+      email: data.email,
+      bookerName: data.bookerName,
+      department: data.department,
+      syncGaroon: data.syncGaroon,
     }
     setBookings((prev) => [...prev, newBooking])
     setModalOpen(false)
@@ -82,47 +113,89 @@ export function BookingGrid() {
     return { ok: true }
   }
 
-  // Grid template: fixed room-label column + one column per hour
-  const gridTemplateColumns = `220px repeat(${HOURS.length}, minmax(120px, 1fr))`
+  /**
+   * Build the ordered list of cells for a room row. Booked blocks span
+   * multiple columns; occupied slots are skipped so the grid stays aligned.
+   */
+  function buildRowCells(room: Room) {
+    const roomBookings = dayBookings.filter((b) => b.roomId === room.id)
+    const cells: React.ReactNode[] = []
+
+    let slot = 0
+    while (slot < TOTAL_SLOTS) {
+      const booking = roomBookings.find(
+        (b) => getSlotIndexFromISO(b.start_time) === slot,
+      )
+
+      if (booking) {
+        const span = Math.max(
+          1,
+          Math.min(
+            getDurationSlots(booking.start_time, booking.end_time),
+            TOTAL_SLOTS - slot,
+          ),
+        )
+        cells.push(
+          <BookedBlock
+            key={booking.id}
+            booking={booking}
+            span={span}
+            onClick={() => handleBookedClick(booking)}
+          />,
+        )
+        slot += span
+      } else {
+        const currentSlot = slot
+        cells.push(
+          <EmptyCell
+            key={`${room.id}-${currentSlot}`}
+            onClick={() => handleEmptyClick(room.id, currentSlot)}
+          />,
+        )
+        slot += 1
+      }
+    }
+
+    return cells
+  }
+
+  // Fixed room-label column + one column per 30-minute slot.
+  const gridTemplateColumns = `220px repeat(${TOTAL_SLOTS}, minmax(96px, 1fr))`
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-      <div className="min-w-max">
-        {/* Header row: time slots */}
-        <div className="grid" style={{ gridTemplateColumns }}>
-          <div className="sticky left-0 z-10 flex items-center border-r border-b border-border bg-muted/60 px-4 py-3 text-sm font-semibold text-foreground">
-            Phòng họp
-          </div>
-          {HOURS.map((hour) => (
-            <div
-              key={hour}
-              className="border-r border-b border-border bg-muted/60 px-2 py-3 text-center text-xs font-medium text-muted-foreground"
-            >
-              {formatHour(hour)}
-            </div>
-          ))}
-        </div>
+    <div className="flex flex-col gap-4">
+      <DateNavigator selectedDate={selectedDate} onChange={setSelectedDate} />
 
-        {/* Room rows */}
-        {ROOMS.map((room) => (
-          <div
-            key={room.id}
-            className="grid"
-            style={{ gridTemplateColumns }}
-          >
-            <div className="sticky left-0 z-10 min-h-[68px]">
-              <RoomLabel room={room} />
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+        <div className="min-w-max">
+          {/* Header row: 30-minute time slots */}
+          <div className="grid" style={{ gridTemplateColumns }}>
+            <div className="sticky left-0 z-10 flex items-center border-r border-b border-border bg-muted/60 px-4 py-3 text-sm font-semibold text-foreground">
+              Phòng họp
             </div>
-            {HOURS.map((hour) => (
-              <div key={`${room.id}-${hour}`} className="min-h-[68px]">
-                <BookingCell
-                  booking={findBooking(room.id, hour)}
-                  onClick={() => handleCellClick(room.id, hour)}
-                />
+            {SLOTS.map((minutes) => (
+              <div
+                key={minutes}
+                className="border-r border-b border-border bg-muted/60 px-1 py-3 text-center text-xs font-medium text-muted-foreground"
+              >
+                {formatMinutes(minutes)}
               </div>
             ))}
           </div>
-        ))}
+
+          {/* Room rows */}
+          {ROOMS.map((room) => (
+            <div key={room.id} className="grid" style={{ gridTemplateColumns }}>
+              <div className="sticky left-0 z-10">
+                <RoomLabel
+                  room={room}
+                  onViewLocation={() => handleViewLocation(room)}
+                />
+              </div>
+              {buildRowCells(room)}
+            </div>
+          ))}
+        </div>
       </div>
 
       <BookingModal
@@ -130,6 +203,12 @@ export function BookingGrid() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onConfirm={handleConfirm}
+      />
+
+      <RoomLocationModal
+        room={locationRoom}
+        open={locationOpen}
+        onOpenChange={setLocationOpen}
       />
     </div>
   )
