@@ -24,6 +24,7 @@ import { BookingModal, type BookingSelection } from "@/components/booking-modal"
 import { EditBookingModal } from "@/components/edit-booking-modal"
 import { RoomLocationModal } from "@/components/room-location-modal"
 import { DateNavigator } from "@/components/date-navigator"
+import { Button } from "@/components/ui/button"
 
 export function BookingGrid() {
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS)
@@ -246,22 +247,24 @@ export function BookingGrid() {
     return cells
   }
 
-  const gridTemplateColumns = `220px repeat(${TOTAL_SLOTS}, 110px)`
+  // Sử dụng phân số (1fr) để tự động dàn đều không gian trên PC, không cần thanh cuộn ngang
+  const gridTemplateColumns = `200px repeat(${TOTAL_SLOTS}, minmax(0, 1fr))`
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 w-full">
       <DateNavigator selectedDate={selectedDate} onChange={setSelectedDate} />
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-        <div className="min-w-max">
-          <div className="grid" style={{ gridTemplateColumns }}>
-            <div className="sticky left-0 z-10 flex items-center border-r border-b border-border bg-muted/60 px-4 py-3 text-sm font-semibold text-foreground">
+      {/* --- GIAO DIỆN DESKTOP (GRID CO GIÃN TỰ ĐỘNG) --- */}
+      <div className="hidden lg:block w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="w-full">
+          <div className="grid w-full" style={{ gridTemplateColumns }}>
+            <div className="flex items-center border-r border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
               Phòng họp
             </div>
             {SLOTS.map((minutes) => (
               <div
                 key={minutes}
-                className="border-r border-b border-border bg-muted/60 px-1 py-3 text-center text-xs font-medium text-muted-foreground"
+                className="border-r border-b border-slate-200 bg-slate-50 px-1 py-3 text-center text-[11px] font-medium text-slate-500"
               >
                 {formatMinutes(minutes)}
               </div>
@@ -269,8 +272,8 @@ export function BookingGrid() {
           </div>
 
           {ROOMS.map((room) => (
-            <div key={room.id} className="grid" style={{ gridTemplateColumns }}>
-              <div className="sticky left-0 z-10 bg-background">
+            <div key={room.id} className="grid w-full" style={{ gridTemplateColumns }}>
+              <div className="bg-white border-b border-r border-slate-200">
                 <RoomLabel
                   room={room}
                   onViewLocation={() => handleViewLocation(room)}
@@ -282,6 +285,54 @@ export function BookingGrid() {
         </div>
       </div>
 
+      {/* --- GIAO DIỆN MOBILE (TIMELINE DỌC) --- */}
+      <div className="lg:hidden flex flex-col gap-6 w-full">
+        {ROOMS.map((room) => {
+          const roomBookings = dayBookings
+            .filter((b) => b.roomId === room.id)
+            .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+          return (
+            <div key={room.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-900">{room.name}</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Tầng {room.floor} • Sức chứa {room.capacity}</p>
+                </div>
+                <Button size="sm" variant="outline" className="text-xs font-medium" onClick={() => handleEmptyClick(room.id, 0)}>
+                  Đặt phòng này
+                </Button>
+              </div>
+
+              <div className="p-4 flex flex-col gap-4">
+                {roomBookings.length > 0 ? (
+                  roomBookings.map((booking) => (
+                    <div key={booking.id} onClick={() => handleBookedClick(booking)} className="flex gap-4 relative cursor-pointer group">
+                      {/* Trục dọc Timeline */}
+                      <div className="w-[2px] bg-blue-100 absolute left-[5px] top-4 bottom-[-24px] group-last:bottom-0" />
+                      <div className="size-3 rounded-full bg-blue-500 ring-4 ring-white relative z-10 shrink-0 mt-2" />
+                      
+                      {/* Thẻ Booking */}
+                      <div className="flex-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/60 rounded-lg p-3 transition-colors">
+                        <p className="text-xs font-bold text-amber-700">{formatRange(booking.start_time, booking.end_time)}</p>
+                        <p className="text-sm font-semibold text-slate-900 mt-1">{booking.title}</p>
+                        <p className="text-xs text-slate-600 flex items-center gap-1.5 mt-1.5">
+                          <span className="font-medium text-slate-800">{booking.bookerName}</span> ({booking.department})
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-500 text-center py-6 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                    Phòng còn trống nguyên ngày
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       <BookingModal
         selection={selection}
         open={modalOpen}
@@ -289,7 +340,6 @@ export function BookingGrid() {
         onConfirm={handleConfirm}
       />
 
-      {/* Tích hợp Modal Sửa/Xóa vừa tạo */}
       <EditBookingModal
         booking={editingBooking}
         open={editModalOpen}
